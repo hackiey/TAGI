@@ -7,12 +7,13 @@ from fireplace.deck import Deck
 from fireplace.exceptions import GameOver
 from hearthstone.enums import CardClass, CardType
 
-from agent import HearthStoneGod, GameModel
+from agent import HearthStoneGod
+from game_model import GameModel
 
 cards.db.initialize('zhCN')
 
 if __name__ == "__main__":
-    model_data = torch.load('./models/model1/69_0.94.pth')
+    model_data = torch.load('./models/model1/91_0.98.pth')
     game_config = model_data['game_config']
 
     game_model = GameModel(game_config)

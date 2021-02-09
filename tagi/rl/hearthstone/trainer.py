@@ -4,19 +4,14 @@ import torch
 import random
 import torch.nn.functional as F
 import numpy as np
-import matplotlib.pyplot as plt
 
 from visdom import Visdom
-from tqdm import tqdm, trange
-from fireplace import cards
-from hearthstone.enums import CardClass, CardType
+from hearthstone.enums import CardClass
 from fireplace.game import Game
-from fireplace.player import Player
-from fireplace.deck import Deck
 from fireplace.exceptions import GameOver
 
-from config import CardConfig, HandConfig, HeroConfig, MinionConfig, GameConfig, ModelConfig
-from agent import HearthStoneGod, GameModel
+from agent import HearthStoneGod
+from game_model import GameModel
 
 
 class HearthStoneDataset(torch.utils.data.Dataset):
@@ -96,7 +91,7 @@ class Trainer:
                     win_num += 1
                     game_data.append((player1.replay, 1))
                 else:
-                    game_data.append((player1.replay, -1))
+                    game_data.append((player1.replay, 0))
                 # print(game_round, "Game completed normally.")
 
         end_time = time.time()
@@ -138,14 +133,14 @@ class Trainer:
 
                 # actions
                 action_logits, game_state = self.player1_model.get_action(
-                    hand, hero, current_minions, opponent, opponent_minions, action_mask)
+                    hand, hero, current_minions, opponent, opponent_minions)
 
                 _action_mask = F.one_hot(action, self.game_config.action_size).squeeze(1)
                 log_probs = torch.sum(_action_mask * F.log_softmax(action_logits, dim=-1), 1)
                 action_loss = - torch.mean(reward * log_probs)
 
                 # targets
-                targets_logits = self.player1_model.get_target(action_logits, game_state, targets_mask)
+                targets_logits = self.player1_model.get_target(action_logits, game_state)
 
                 _targets_mask = F.one_hot(target, self.game_config.targets_size).squeeze(1)
                 log_probs = torch.sum(_targets_mask * F.log_softmax(targets_logits, dim=-1), 1)

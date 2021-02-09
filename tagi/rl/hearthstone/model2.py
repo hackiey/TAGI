@@ -6,7 +6,7 @@ from hearthstone.enums import CardClass, CardType
 from utils import get_collection
 from config import CardConfig, HandConfig, HeroConfig, MinionConfig, GameConfig, ModelConfig
 from trainer import Trainer
-from agent import GameModel
+# from agent import GameModel
 
 # initialize cards db
 cards.db.initialize('zhCN')

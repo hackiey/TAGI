@@ -1,5 +1,6 @@
 from enum import IntEnum
 
+
 class CardType(IntEnum): 
     SPELL = 0,
     MINION = 1
@@ -55,6 +56,7 @@ class HeroConfig:
         self.max_mana = max_mana
         self.state_size = state_size
 
+
 class MinionConfig:
     def __init__(self, max_attack: int, max_health: int):
         self.max_attack = max_attack
@@ -66,7 +68,8 @@ class MinionConfig:
 class GameConfig:
     def __init__(self, card_config: CardConfig, hand_config: HandConfig, 
                         hero_config: HeroConfig, minion_config: MinionConfig,
-                        action_hidden_size: int, targets_hidden_size: int):
+                        action_hidden_size: int, action_state_size: int,
+                        targets_hidden_size: int):
         self.card_config = card_config
         self.hand_config = hand_config
         self.hero_config = hero_config
@@ -76,6 +79,7 @@ class GameConfig:
 
         self.action_hidden_size = action_hidden_size
         self.action_size = 20 # [card: 0-9, characcters_attack: 10-17, heropower: 18, end_turn: 19]
+        self.action_state_size = action_state_size
 
         self.targets_hidden_size = targets_hidden_size
         self.targets_size = 17 # [:0-15]
