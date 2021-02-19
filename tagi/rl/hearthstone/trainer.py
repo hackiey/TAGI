@@ -96,7 +96,7 @@ class Trainer:
                     player.play_turn(game)
                     
             except GameOver:
-                if game.player2.hero.dead:
+                if player2.hero.dead:
                     win_num += 1
                     game_data.append((player1.replay, 1))
                 else:

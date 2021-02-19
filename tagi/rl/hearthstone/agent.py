@@ -79,12 +79,12 @@ class HearthStoneGod(Player):
         hand_obs = np.concatenate([hand_obs, padding])
 
         # characters obs
-        if self.game.player1.name == self.name:
-            current_player = self.game.player1
-            opponent_player = self.game.player2
+        if self.game.players[0].name == self.name:
+            current_player = self.game.players[0]
+            opponent_player = self.game.players[1]
         else:
-            current_player = self.game.player2
-            opponent_player = self.game.player1
+            current_player = self.game.players[1]
+            opponent_player = self.game.players[0]
 
         # hero obs
         hero_obs = self.serialize_player(current_player)
