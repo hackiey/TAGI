@@ -52,7 +52,7 @@ game_config = GameConfig(
 
 model_config = ModelConfig(
     model_name='model1', seed=520,
-    epoch=200, round_num=100, learning_rate=0.001, batch_size=64, optim='Adam')
+    epoch=2000, round_num=200, learning_rate=0.001, batch_size=256, optim='Adam')
 
 trainer = Trainer(model_config, game_config, model_dir='models')
 

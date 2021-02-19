@@ -10,7 +10,7 @@ from config import CardConfig, HandConfig, HeroConfig, MinionConfig, GameConfig
 
 
 class HearthStoneGod(Player):
-    def __init__(self, name, deck, hero, game_config: GameConfig, game_model=None, manual=False):
+    def __init__(self, name, deck, hero, game_config: GameConfig, game_model=None, manual=False, device=torch.device('cpu')):
         super(HearthStoneGod, self).__init__(name, deck, hero)
         self.name = name
 
@@ -19,6 +19,8 @@ class HearthStoneGod(Player):
         self.hand_config = game_config.hand_config
         self.hero_config = game_config.hero_config
         self.minion_config = game_config.minion_config
+
+        self.device = device
 
         if game_model == 'random':
             self.game_model = None
@@ -43,16 +45,18 @@ class HearthStoneGod(Player):
                 if target.entity_id == targets_id[i]:
                     targets_mask[i] = 1
 
+        targets_mask = torch.from_numpy(targets_mask).to(self.device)
         return targets_mask
 
     def calculate_targets(self, targets_id, available_targets, action_logits, game_state):
         targets_mask = self.calculate_targets_mask(targets_id, available_targets)
-        targets_logits = self.game_model.get_target(action_logits, game_state)
-        targets_logits = F.softmax(targets_logits - 1e30 * (1-targets_mask), dim=-1)
-        target_index = int(targets_logits.argmax().item())
+        targets_policy = self.game_model.get_target(action_logits, game_state, targets_mask)
+        # targets_logits = F.softmax(targets_logits - 1e30 * (1-targets_mask), dim=-1)
+        # target_index = int(targets_logits.argmax().item())
+        target_index = int(targets_policy.sample().item())
         target = self.get_character_by_entity_id(targets_id[target_index])
 
-        return target
+        return target, target_index, targets_mask
 
     def serialize_player(self, player):
         hero_obs = np.array([
@@ -160,19 +164,19 @@ class HearthStoneGod(Player):
                 while True:
                     obs = self.serialize_current_turn()
                     # hand_obs, hero_obs, opponent_obs, current_minions_obs, opponent_minions_obs
-                    action_logits, game_state = self.game_model.get_action(
-                        torch.LongTensor(obs['hand']).unsqueeze(0),
-                        torch.FloatTensor(obs['hero']).unsqueeze(0),
-                        torch.FloatTensor(obs['characters']['current']).unsqueeze(0),
-                        torch.FloatTensor(obs['opponent']).unsqueeze(0),
-                        torch.FloatTensor(obs['characters']['opponent']).unsqueeze(0))
+                    action_policy, action_logits, game_state = self.game_model.get_action(
+                        torch.LongTensor(obs['hand']).unsqueeze(0).to(self.device),
+                        torch.FloatTensor(obs['hero']).unsqueeze(0).to(self.device),
+                        torch.FloatTensor(obs['characters']['current']).unsqueeze(0).to(self.device),
+                        torch.FloatTensor(obs['opponent']).unsqueeze(0).to(self.device),
+                        torch.FloatTensor(obs['characters']['opponent']).unsqueeze(0).to(self.device),
+                        torch.FloatTensor(obs['action_mask']).unsqueeze(0).to(self.device))
 
-                    action_logits = F.softmax(action_logits - 1e30 * (1 - obs['action_mask']), dim=-1)
-
-                    action = int(action_logits.argmax(-1).item())
+                    # action = int(action_logits.argmax(-1).item())
+                    action = int(action_policy.sample().item())
                     targets_id = obs['targets_id']
                     target, target_index = None, self.game_config.targets_size-1
-                    targets_mask = np.array([0 for _ in targets_id]+[1])
+                    targets_mask = torch.from_numpy(np.array([0 for _ in targets_id]+[1])).to(self.device)
 
                     turn_end = False
                     if 0 <= action < 10:
@@ -180,8 +184,7 @@ class HearthStoneGod(Player):
                         card = self.hand[action]
                         if card.requires_target():
                             # targets
-
-                            target = self.calculate_targets(targets_id, card.targets, action_logits, game_state)
+                            target, target_index, targets_mask = self.calculate_targets(targets_id, card.targets, action_logits, game_state)
 
                         card.play(target=target)
 
@@ -189,7 +192,7 @@ class HearthStoneGod(Player):
                         character = self.characters[action - 10]
                         # character attack
                         # targets
-                        target = self.calculate_targets(targets_id, character.targets, action_logits, game_state)
+                        target, target_index, targets_mask = self.calculate_targets(targets_id, character.targets, action_logits, game_state)
 
                         character.attack(target)
 
@@ -197,7 +200,7 @@ class HearthStoneGod(Player):
                         # heropower
                         if self.hero.power.requires_target():
                             # targets
-                            target = self.calculate_targets(targets_id, self.hero.power.targets, action_logits, game_state)
+                            target, target_index, targets_mask = self.calculate_targets(targets_id, self.hero.power.targets, action_logits, game_state)
 
                             self.hero.power.use(target=target)
                         else:

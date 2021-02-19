@@ -1,5 +1,6 @@
 import torch
 
+from torch.distributions.categorical import Categorical
 from config import CardConfig, HandConfig, HeroConfig, MinionConfig, GameConfig
 
 
@@ -34,9 +35,9 @@ class CardModel(torch.nn.Module):
         #     card_embedding = torch.cat(cards_embedding, cards_properties)
 
         hidden = self.linear1(cards_embedding)
-        hidden = torch.sigmoid(hidden)
+        hidden = torch.relu(hidden)
         state = self.linear2(hidden)
-        state = torch.sigmoid(state)
+        state = torch.tanh(state)
         return state
 
 
@@ -55,11 +56,12 @@ class HandModel(torch.nn.Module):
 
     def forward(self, hand_obs):
         cards_embedding = self.card_model(hand_obs)
-        cards_embedding = torch.flatten(cards_embedding, start_dim = 1)
+        cards_embedding = torch.flatten(cards_embedding, start_dim=1)
 
         hidden = self.linear1(cards_embedding)
-        hidden = torch.sigmoid(hidden)
+        hidden = torch.relu(hidden)
         state = self.linear2(hidden)
+        state = torch.tanh(state)
         return state
 
 
@@ -68,9 +70,12 @@ class HeroModel(torch.nn.Module):
         super(HeroModel, self).__init__()
         self.hero_config = hero_config
 
-    def forward(self, hero_obs):
+        self.linear1 = torch.nn.Linear(self.hero_config.state_size, self.hero_config.state_size)
 
-        return hero_obs
+    def forward(self, hero_obs):
+        hero_state = self.linear1(hero_obs)
+        hero_state = torch.tanh(hero_state)
+        return hero_state
 
 
 class MinionModel(torch.nn.Module):
@@ -78,8 +83,14 @@ class MinionModel(torch.nn.Module):
         super(MinionModel, self).__init__()
         self.minion_config = minion_config
 
+        max_minions = self.minion_config.max_minions
+        state_size = self.minion_config.state_size
+        self.linear1 = torch.nn.Linear(max_minions * state_size, max_minions * state_size)
+
     def forward(self, minion_obs):
-        return minion_obs
+        minion_state = self.linear1(minion_obs)
+        minion_state = torch.tanh(minion_state)
+        return minion_state
 
 
 class GameModel(torch.nn.Module):
@@ -109,7 +120,7 @@ class GameModel(torch.nn.Module):
             self.game_config.targets_hidden_size)
         self.targets = torch.nn.Linear(self.game_config.targets_hidden_size, self.game_config.targets_size)
 
-    def get_action(self, hand_obs, hero_obs, current_minions_obs, opponent_obs, opponent_minions_obs):
+    def get_action(self, hand_obs, hero_obs, current_minions_obs, opponent_obs, opponent_minions_obs, action_mask=None):
         hand_state = self.hand_model(hand_obs)
         hero_state = self.hero_model(hero_obs)
 
@@ -124,12 +135,17 @@ class GameModel(torch.nn.Module):
 
         # action
         action_logits = self.action_hidden(game_state)
-        action_logits = torch.sigmoid(action_logits)
+        action_logits = torch.tanh(action_logits)
         action_logits = self.action(action_logits)
 
-        return action_logits, game_state
+        # action_logits = F.softmax(action_logits - 1e30 * (1 - action_mask), dim=-1)
+        # if action_mask != None:
+        action_logits = action_logits - 1e30 * (1 - action_mask)
+        action_policy = Categorical(logits=action_logits)
 
-    def get_target(self, action_logits, game_state, card=None, hero=None, minion=None):
+        return action_policy, action_logits, game_state
+
+    def get_target(self, action_logits, game_state, targets_mask):
 
         # if 0 <= action < 10:
         #     card_id = self.card_model.cards_dict[card.name]
@@ -143,7 +159,12 @@ class GameModel(torch.nn.Module):
         #     logits = torch.zeros(self.game_config.action_state_size)
 
         targets_logits = self.targets_hidden(torch.cat([game_state, action_logits], dim=-1))
-        targets_logits = torch.sigmoid(targets_logits)
+        targets_logits = torch.tanh(targets_logits)
         targets_logits = self.targets(targets_logits)
 
-        return targets_logits
+        # targets_logits = F.softmax(targets_logits - 1e30 * (1 - targets_mask), dim=-1)
+        # if targets_mask != None:
+        targets_logits = targets_logits - 1e30 * (1 - targets_mask)
+
+        targets_policy = Categorical(logits=targets_logits)
+        return targets_policy
