@@ -2,7 +2,6 @@ import os
 import time
 import torch
 import random
-import torch.nn.functional as F
 import numpy as np
 
 from visdom import Visdom
@@ -41,31 +40,40 @@ class HearthStoneDataset(torch.utils.data.Dataset):
 
 
 class Trainer:
-    def __init__(self, model_config, game_config, player1_model=None, player2_model=None, model_dir='.'):
+    def __init__(self, model_config, game_config,
+                 player1_model=None, player1_mode='model_training',
+                 player2_model=None, player2_mode='random', model_dir='.'):
+
         self.model_config = model_config
         self.game_config = game_config
         self.device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
-        if player1_model is not None:
-            self.player1_model = player1_model
-        else:
-            self.player1_model = GameModel(game_config)
-        self.player1_model.to(self.device)
-        
-        if player2_model is not None:
-            self.player2_model = player2_model
+        self.player1_mode = player1_mode
+        self.player2_mode = player2_mode
+
+        self.player1_model = player1_model
+        self.player2_model = player2_model
+
+        if player1_mode.startswith('model'):
+            if player1_model is None:
+                self.player1_model = GameModel(game_config)
+            self.player1_model.to(self.device)
+
+        if player2_mode.startswith('model'):
+            if player2_model is None:
+                self.player2_model = GameModel(game_config)
             self.player2_model.to(self.device)
-        else:
-            self.player2_model = 'random'
 
         self.model_dir = model_dir
-        self.vis = Visdom()
-        trace = dict(x=[1, 2, 3], y=[4, 5, 6], mode="markers+lines", type='custom',
-                     marker={'color': 'red', 'symbol': 104, 'size': "10"},
-                     text=["one", "two", "three"], name='1st Trace')
-        layout = dict(title="First Plot", xaxis={'title': 'x1'}, yaxis={'title': 'x2'})
+        self.vis = Visdom(env=self.model_config.model_name)
 
-        self.vis._send({'data': [trace], 'layout': layout, 'win': 'mywin'})
+        self.win_rates = []
+        # trace = dict(x=[1, 2, 3], y=[4, 5, 6], mode="markers+lines", type='custom',
+        #              marker={'color': 'red', 'symbol': 104, 'size': "10"},
+        #              text=["one", "two", "three"], name='1st Trace')
+        # layout = dict(title="First Plot", xaxis={'title': 'x1'}, yaxis={'title': 'x2'})
+        #
+        # self.vis._send({'data': [trace], 'layout': layout, 'win': 'mywin'})
 
     def collect_game_data(self):
         win_num = 0
@@ -75,14 +83,14 @@ class Trainer:
         for game_round in range(self.model_config.round_num):
             # initialize game
             deck1 = [c[1] for c in self.game_config.card_config.cards_list[1:] * 4]
-            player1 = HearthStoneGod('Player1', deck1, CardClass.MAGE.default_hero,
-                                        self.game_config, game_model=self.player1_model, device=self.device)
+            player1 = HearthStoneGod('Player1', deck1, CardClass.MAGE.default_hero, self.game_config,
+                                     game_model=self.player1_model, mode=self.player1_mode, device=self.device)
 
             deck2 = [c[1] for c in self.game_config.card_config.cards_list[1:] * 4]
-            player2 = HearthStoneGod('Player2', deck2, CardClass.MAGE.default_hero,
-                                        self.game_config, game_model=self.player2_model, device=self.device)
+            player2 = HearthStoneGod('Player2', deck2, CardClass.MAGE.default_hero, self.game_config,
+                                     game_model=self.player2_model, mode=self.player2_mode, device=self.device)
 
-            game = Game(players=(player1, player2))
+            game = Game(players=[player1, player2])
             game.start()
 
             # play game
@@ -101,7 +109,6 @@ class Trainer:
                     game_data.append((player1.replay, 1))
                 else:
                     game_data.append((player1.replay, -1))
-                # print(game_round, "Game completed normally.")
 
         end_time = time.time()
         win_rate = win_num / self.model_config.round_num
@@ -124,8 +131,15 @@ class Trainer:
             raise NotImplementedError(self.model_config.optim + " is not implemented!")
 
         best_win_rate = 0
+
+        vis_win_rate = self.vis.line(self.win_rates, opts={'title':'win rate'})
+
         for epoch in range(self.model_config.epoch):
             game_data, win_rate = self.collect_game_data()
+
+            self.win_rates.append(win_rate)
+            # self.vis.line(self.win_rates, name='win rate')
+            self.vis.line(self.win_rates, win=vis_win_rate, update='append')
 
             if win_rate > best_win_rate or epoch % 10 == 0:
                 self.save(epoch, win_rate)
@@ -150,26 +164,21 @@ class Trainer:
                 # actions
                 action_policy, action_logits, game_state = self.player1_model.get_action(
                     hand, hero, current_minions, opponent, opponent_minions, action_mask)
-
                 action_loss = - (reward * action_policy.log_prob(action)).mean()
-                # _action_mask = F.one_hot(action, self.game_config.action_size).squeeze(1)
-                # log_probs = torch.sum(_action_mask * F.log_softmax(action_logits, dim=-1), 1)
-                # action_loss = - torch.mean(reward * log_probs)
 
                 # targets
                 targets_policy = self.player1_model.get_target(action_logits, game_state, targets_mask)
                 target_loss = - (reward * targets_policy.log_prob(target)).mean()
-                # _targets_mask = F.one_hot(target, self.game_config.targets_size).squeeze(1)
-                # log_probs = torch.sum(_targets_mask * F.log_softmax(targets_logits, dim=-1), 1)
-                # target_loss = - torch.mean(reward * log_probs)
 
+                # total loss
                 loss = action_loss + target_loss
 
                 if step % 100 == 0:
                     print(loss.item())
                 
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.player1_model.parameters(), 20, norm_type=2)
+                torch.nn.utils.clip_grad_norm_(self.player1_model.parameters(), self.model_config.grad_clip,
+                                               norm_type=self.model_config.grad_norm_type)
                 optimizer.step()
     
     def save(self, epoch, win_rate):

@@ -1,5 +1,5 @@
 from fireplace import cards
-from hearthstone.enums import CardClass, CardType
+from hearthstone.enums import CardClass
 
 from utils import get_collection
 from config import CardConfig, HandConfig, HeroConfig, MinionConfig, GameConfig, ModelConfig
@@ -52,8 +52,9 @@ game_config = GameConfig(
 
 model_config = ModelConfig(
     model_name='model1', seed=520,
-    epoch=2000, round_num=200, learning_rate=0.001, batch_size=256, optim='Adam')
+    epoch=2000, round_num=200, learning_rate=0.001, batch_size=256, optim='Adam',
+    grad_clip=20, grad_norm_type=2)
 
-trainer = Trainer(model_config, game_config, model_dir='models')
+trainer = Trainer(model_config, game_config, player1_mode='model_training', player2_mode='random', model_dir='models')
 
 trainer.train()

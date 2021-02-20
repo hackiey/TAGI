@@ -9,8 +9,6 @@ class CardModel(torch.nn.Module):
         super(CardModel, self).__init__()
 
         self.card_config = card_config
-
-        # build card dict
         self.cards_dict = card_config.cards_dict
 
         # build model
@@ -47,8 +45,6 @@ class HandModel(torch.nn.Module):
 
         self.card_config = card_config
         self.hand_config = hand_config
-
-        # self.card_model = CardModel(card_config)
         self.card_model = card_model
 
         self.linear1 = torch.nn.Linear(hand_config.max_hand_cards * card_config.state_size, hand_config.hidden_size)
@@ -132,14 +128,11 @@ class GameModel(torch.nn.Module):
         game_state = torch.cat([hand_state,
                                 hero_state, current_minions_state,
                                 opponent_state, opponent_minions_state], dim=1)
-
         # action
         action_logits = self.action_hidden(game_state)
         action_logits = torch.tanh(action_logits)
         action_logits = self.action(action_logits)
 
-        # action_logits = F.softmax(action_logits - 1e30 * (1 - action_mask), dim=-1)
-        # if action_mask != None:
         action_logits = action_logits - 1e30 * (1 - action_mask)
         action_policy = Categorical(logits=action_logits)
 
@@ -147,24 +140,11 @@ class GameModel(torch.nn.Module):
 
     def get_target(self, action_logits, game_state, targets_mask):
 
-        # if 0 <= action < 10:
-        #     card_id = self.card_model.cards_dict[card.name]
-        #     card_state = self.card_model(card_id)
-        #     logits = self.card_model(card_state)
-        # elif 10 <= action <= 17:
-        #
-        # elif action == 18:
-        #     logits =
-        # elif action == 19:
-        #     logits = torch.zeros(self.game_config.action_state_size)
-
         targets_logits = self.targets_hidden(torch.cat([game_state, action_logits], dim=-1))
         targets_logits = torch.tanh(targets_logits)
         targets_logits = self.targets(targets_logits)
 
-        # targets_logits = F.softmax(targets_logits - 1e30 * (1 - targets_mask), dim=-1)
-        # if targets_mask != None:
         targets_logits = targets_logits - 1e30 * (1 - targets_mask)
-
         targets_policy = Categorical(logits=targets_logits)
+
         return targets_policy

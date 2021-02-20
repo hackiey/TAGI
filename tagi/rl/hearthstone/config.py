@@ -7,13 +7,12 @@ class CardType(IntEnum):
 
 
 class CardConfig:
-    def __init__(self, 
-            cards_list: list,
-            card_embedding_size: int, 
-            card_type_num: int, card_type_embedding_size: int,
-            hidden_size: int, state_size: int,
-            max_cost: int, max_attack: int, max_health: int, 
-            card_property_size: int, with_property: bool):
+    def __init__(self,
+                 cards_list: list, card_embedding_size: int,
+                 card_type_num: int, card_type_embedding_size: int,
+                 hidden_size: int, state_size: int,
+                 max_cost: int, max_attack: int, max_health: int,
+                 card_property_size: int, with_property: bool):
 
         self.cards_list = cards_list
         self.cards_dict = {'padding': 0}
@@ -39,7 +38,7 @@ class CardConfig:
 
 class HandConfig:
     def __init__(self, max_hand_cards: int, max_deck_cards: int,
-                    hand_embedding_size: int, hidden_size: int, state_size: int):
+                 hand_embedding_size: int, hidden_size: int, state_size: int):
         
         self.max_hand_cards = max_hand_cards
         self.max_deck_cards = max_deck_cards
@@ -62,14 +61,14 @@ class MinionConfig:
         self.max_attack = max_attack
         self.max_health = max_health
         self.max_minions = 7
-        self.state_size = 3 # [atk: 0, health: 1, can_attack: 2]
+        self.state_size = 3  # [atk: 0, health: 1, can_attack: 2]
 
 
 class GameConfig:
-    def __init__(self, card_config: CardConfig, hand_config: HandConfig, 
-                        hero_config: HeroConfig, minion_config: MinionConfig,
-                        action_hidden_size: int, action_state_size: int,
-                        targets_hidden_size: int):
+    def __init__(self, card_config: CardConfig, hand_config: HandConfig,
+                 hero_config: HeroConfig, minion_config: MinionConfig,
+                 action_hidden_size: int, action_state_size: int,
+                 targets_hidden_size: int):
         self.card_config = card_config
         self.hand_config = hand_config
         self.hero_config = hero_config
@@ -78,17 +77,17 @@ class GameConfig:
         self.can_attack_num = 8
 
         self.action_hidden_size = action_hidden_size
-        self.action_size = 20 # [card: 0-9, characcters_attack: 10-17, heropower: 18, end_turn: 19]
+        self.action_size = 20   # [card: 0-9, characters_attack: 10-17, heropower: 18, end_turn: 19]
         self.action_state_size = action_state_size
 
         self.targets_hidden_size = targets_hidden_size
-        self.targets_size = 17 # [:0-15]
+        self.targets_size = 17  # [:0-15]
 
 
 class ModelConfig:
-    def __init__(self, model_name: str, seed: int, 
-                epoch: int, round_num: int, 
-                learning_rate: float, batch_size: int, optim: str):
+    def __init__(self, model_name: str, seed: int, epoch: int, round_num: int,
+                 learning_rate: float, batch_size: int, optim: str,
+                 grad_clip: float, grad_norm_type: int):
         self.model_name = model_name
         self.seed = seed
         self.epoch = epoch
@@ -96,3 +95,6 @@ class ModelConfig:
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         self.optim = optim
+
+        self.grad_clip = grad_clip
+        self.grad_norm_type = grad_norm_type
