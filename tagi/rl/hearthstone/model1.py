@@ -51,7 +51,7 @@ game_config = GameConfig(
     action_hidden_size=64, action_state_size=4, targets_hidden_size=64)
 
 model_config = ModelConfig(
-    model_name='model1', seed=520,
+    model_name='model1.1', seed=520,
     epoch=2000, round_num=200, learning_rate=0.001, batch_size=256, optim='Adam',
     grad_clip=20, grad_norm_type=2)
 

@@ -11,7 +11,7 @@ from game_model import GameModel
 cards.db.initialize('zhCN')
 
 if __name__ == "__main__":
-    model_data = torch.load('./models/model1/1975_0.995.pth', map_location='cpu')
+    model_data = torch.load('./models/model1.1/105_0.99.pth', map_location='cpu')
     game_config = model_data['game_config']
 
     game_model = GameModel(game_config)

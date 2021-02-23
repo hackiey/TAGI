@@ -98,9 +98,9 @@ class Trainer:
             except GameOver:
                 if player2.hero.dead:
                     win_num += 1
-                    game_data.append((player1.replay, 1))
+                    game_data.append((player1.replay, player1.hero.health))
                 else:
-                    game_data.append((player1.replay, -1))
+                    game_data.append((player1.replay, -player2.hero.health))
 
         end_time = time.time()
         win_rate = win_num / self.model_config.round_num
