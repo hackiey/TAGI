@@ -4,6 +4,50 @@ from termcolor import colored
 from hearthstone.enums import CardClass, CardType
 
 
+def get_character_name(character):
+    if character is not None:
+        return character.controller.name + '-' + str(character)
+
+
+def print_card(agent, card, target):
+    print(colored('%s used card <%s> on %s' % (agent.name, card, get_character_name(target)), 'red'))
+
+
+def print_attack(agent, character, target):
+    print(colored('%s attack %s' % (get_character_name(character), get_character_name(target)), 'red'))
+
+
+def print_heropower(agent, heropower, target):
+    print(colored('%s use %s on %s' % (agent, heropower, get_character_name(target)), 'red'))
+
+
+def print_targets(targets):
+    for i, target in enumerate(targets):
+        print(i, get_character_name(target))
+
+
+def print_game(game, player_name):
+    if player_name == game.players[0].name:
+        player = game.players[0]
+        opponent = game.players[1]
+    else:
+        player = game.players[1]
+        opponent = game.players[0]
+
+    print(colored('============================================= ' + str(game.turn) +
+                  ' ==============================================', 'blue'))
+    print('health', opponent.hero.health, 'mana', opponent.mana)
+    print(f'{len(opponent.hand)} cards')
+    print(colored('HAND', 'red'), opponent.hand)
+    print(colored('FIELD', 'red'), opponent.field)
+    print('----------------------------------------------------------------------------------------------')
+    print(colored('FIELD', 'blue'), player.field)
+    print(colored('HAND', 'blue'), player.hand)
+    print(f'{len(player.hand)} cards')
+    print('health', player.hero.health, 'mana', player.mana)
+    print('====================================== available actions =====================================')
+
+
 def manual_play_turn(agent):
     obs = agent.serialize_current_turn()
     print_game(agent.game, agent.name)
@@ -37,21 +81,25 @@ def manual_play_turn(agent):
 
     action_index = int(input(f'Input your action [0-{len(available_actions)-1}]: '))
     action = available_actions[action_index]
-    print(action)
+    print(action[0], action[1])
+
     if action[0] == 'card':
         target = None
         if action[2] is not None:
-            print('targets', action[2])
+            # print('targets', action[2])
+            print_targets(action[2])
             target_index = int(input(f'Please select a target [0-{len(action[2])-1}]: '))
             target = action[2][target_index]
         action[1].play(target=target)
     elif action[0] == 'attack':
-        print('targets', action[2])
+        # print('targets', action[2])
+        print_targets(action[2])
         target_index = int(input(f'Please select a target [0-{len(action[2])-1}]: '))
         action[1].attack(action[2][target_index])
     elif action[0] == 'power':
         if action[2] is not None:
-            print('targets', action[2])
+            # print('targets', action[2])
+            print_targets(action[2])
             target_index = int(input(f'Please select a target [0-{len(action[2])-1}]: '))
             action[1].use(action[2][target_index])
         else:
@@ -100,45 +148,6 @@ def random_play_turn(agent):
 
     agent.game.end_turn()
     return agent.game
-
-
-def get_character_name(character):
-    if character is not None:
-        return character.controller.name + '-' + str(character)
-
-
-def print_card(agent, card, target):
-    print(colored('%s used card <%s> on %s' % (agent.name, card, get_character_name(target)), 'red'))
-
-
-def print_attack(agent, character, target):
-    print(colored('%s attack %s' % (get_character_name(target), get_character_name(target)), 'red'))
-
-
-def print_heropower(agent, heropower, target):
-    print(colored('%s use %s on %s' % (agent, heropower, get_character_name(target)), 'red'))
-
-
-def print_game(game, player_name):
-    if player_name == game.players[0].name:
-        player = game.players[0]
-        opponent = game.players[1]
-    else:
-        player = game.players[1]
-        opponent = game.players[0]
-
-    print(colored('============================================= ' + str(game.turn) +
-                  ' ==============================================', 'blue'))
-    print('health', opponent.hero.health, 'mana', opponent.mana)
-    print(f'{len(opponent.hand)} cards')
-    print(colored('HAND', 'red'), opponent.hand)
-    print(colored('FIELD', 'red'), opponent.field)
-    print('----------------------------------------------------------------------------------------------')
-    print(colored('FIELD', 'blue'), player.field)
-    print(colored('HAND', 'blue'), player.hand)
-    print(f'{len(player.hand)} cards')
-    print('health', player.hero.health, 'mana', player.mana)
-    print('====================================== available actions =====================================')
 
 
 # utils

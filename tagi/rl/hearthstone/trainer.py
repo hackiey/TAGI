@@ -67,14 +67,6 @@ class Trainer:
         self.model_dir = model_dir
         self.vis = Visdom(env=self.model_config.model_name)
 
-        self.win_rates = []
-        # trace = dict(x=[1, 2, 3], y=[4, 5, 6], mode="markers+lines", type='custom',
-        #              marker={'color': 'red', 'symbol': 104, 'size': "10"},
-        #              text=["one", "two", "three"], name='1st Trace')
-        # layout = dict(title="First Plot", xaxis={'title': 'x1'}, yaxis={'title': 'x2'})
-        #
-        # self.vis._send({'data': [trace], 'layout': layout, 'win': 'mywin'})
-
     def collect_game_data(self):
         win_num = 0
         game_data = []
@@ -132,29 +124,32 @@ class Trainer:
 
         best_win_rate = 0
 
-        vis_win_rate = self.vis.line(self.win_rates, opts={'title':'win rate'})
+        win_rates = []
 
         for epoch in range(self.model_config.epoch):
             game_data, win_rate = self.collect_game_data()
 
-            self.win_rates.append(win_rate)
-            # self.vis.line(self.win_rates, name='win rate')
-            self.vis.line(self.win_rates, win=vis_win_rate, update='append')
+            # plot win rates
+            win_rates.append(win_rate)
+            self.vis.line(win_rates, np.arange(epoch+1), win='win rates', opts={'title': 'win rates'})
 
+            # save
             if win_rate > best_win_rate or epoch % 10 == 0:
-                self.save(epoch, win_rate)
+                self.save(epoch+1, win_rate)
                 best_win_rate = win_rate
                 
             print(f'epoch {epoch} win rate:', win_rate)
 
+            # dataloader
             dataset = HearthStoneDataset(game_data)
             dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.model_config.batch_size, shuffle=True)
-            
+
+            # train
             for step, data in enumerate(dataloader):
                 optimizer.zero_grad()
 
                 hand, hero, current_minions, opponent, opponent_minions, \
-                        action_mask, targets_mask, action, target, reward = data
+                    action_mask, targets_mask, action, target, reward = data
 
                 hand, hero, current_minions = hand.to(device), hero.to(device), current_minions.to(device)
                 opponent, opponent_minions = opponent.to(device), opponent_minions.to(device)
