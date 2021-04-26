@@ -1,3 +1,5 @@
+*.pkl
+tagi/data/
 models/
 tagi/pretrained
 exampls/dialogue/data/
