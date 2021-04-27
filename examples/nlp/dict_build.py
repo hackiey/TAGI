@@ -1,7 +1,7 @@
 import glob
 import tagi
 import math
-import time
+import multiprocessing
 
 from tqdm import tqdm, trange
 from collections import Counter, defaultdict
@@ -18,48 +18,37 @@ class DictBuilding:
 
         self.preprocessor = Preprocessor()
 
-    def union_freq(self, freq1, freq2):
-        for key in freq1.keys():
-            freq2[key] = freq1.get(key, 0) + freq2.get(key, 0)
-        # words = freq1.keys() | freq2.keys()
-        # freq = {}
-        # for key in words:
-        #     freq[key] = freq1.get(key, 0) + freq2.get(key, 0)
+        self.ngrams_freq = Trie()
+        self.ngrams_words = {i: set() for i in range(1, max_n)}
+
+    def union_freq(self, freq_chunk):
+        for key in freq_chunk.keys():
+            self.ngrams_freq[key] = freq_chunk[key] + self.ngrams_freq.get(key, 0)
 
     @staticmethod
-    def build_chunk(chunk, min_n, max_n, min_freq):
-        ngrams_chunk = {}
-        ngrams_words = {i: set() for i in range(1, max_n + 2)}
+    def build_chunk(chunk, min_n, max_n, min_freq, progress):
+        print('build chunk', progress*100)
+        freq_chunk = {}
         for n in [1] + list(range(min_n, max_n+2)):
             n_generator = Preprocessor.ngram_generator(chunk, n)
             chunk_freq = dict(Counter(n_generator))
-            ngrams_words[n].update(chunk_freq.keys())
-            ngrams_chunk.update(chunk_freq)
+            freq_chunk.update(chunk_freq)
+        freq_chunk = {word: count for word, count in freq_chunk.items() if count >= min_freq}
 
-        ngrams_chunk = {word: count for word, count in ngrams_chunk.items() if count >= min_freq}
-        return ngrams_chunk, ngrams_words
+        return freq_chunk
 
-    def build_ngrams(self, corpus, chunk_size=1000):
+    def build_ngrams(self, corpus, chunk_size=10000, workers=16):
+        pool = multiprocessing.Pool(processes=workers)
+        for i in range(0, len(corpus), chunk_size):
+            progress = i / len(corpus)
+            pool.apply_async(DictBuilding.build_chunk,
+                             args=(corpus[i:i+chunk_size], self.min_n, self.max_n, self.min_freq, progress),
+                             callback=self.union_freq)
+        pool.close()
+        pool.join()
 
-        ngrams_words = {i: set() for i in range(1, self.max_n + 2)}
-        ngrams_freq = defaultdict(int)
-
-        # def _build_chunk(chunk):
-        #     ngrams_chunk = {}
-        #     for n in [1] + list(range(self.min_n, self.max_n+2)):
-        #         n_generator = self.preprocessor.ngram_generator(chunk, n)
-        #         chunk_freq = dict(Counter(n_generator))
-        #         ngrams_words[n].update(chunk_freq.keys())
-        #         ngrams_chunk.update(chunk_freq)
-        #
-        #     ngrams_chunk = {word: count for word, count in ngrams_chunk.items() if count >= self.min_freq}
-        #     return ngrams_chunk
-
-        for i in trange(0, len(corpus), chunk_size, desc='chunk'):
-            ngrams_chunk = _build_chunk(corpus[i:i+chunk_size])
-            self.union_freq(ngrams_chunk, ngrams_freq)
-
-        return ngrams_words, ngrams_freq
+        for k in self.ngrams_freq.keys():
+            self.ngrams_words[len(k)].add(k)
 
     def cal_ngram_entropy(self, parent_word_freq):
         total_count = sum(parent_word_freq)
@@ -97,39 +86,42 @@ class DictBuilding:
 
         return entropy
 
-    def build(self, corpus, chunk_size=1000):
-        ngrams_words, ngrams_freq = self.build_ngrams(corpus, chunk_size)
-        left_right_entropy = self.cal_left_right_entropy(ngrams_words, ngrams_freq)
-
+    def build(self):
+        left_right_entropy = self.cal_left_right_entropy(self.ngrams_words, self.ngrams_freq)
 
 
 if __name__ == '__main__':
     import os
-    import json
     import pickle
-    import multiprocessing
 
     dict_building = DictBuilding()
     preprocessor = Preprocessor()
 
-    corpus_path = 'tmp_corpus.pkl'
-    if os.path.exists(corpus_path):
-        corpus = pickle.load(open(corpus_path, 'rb'))
+    if not (os.path.exists('tmp_words.pkl') and os.path.exists('tmp_freq.pkl')):
+        if os.path.exists('tmp_corpus.pkl'):
+            corpus = pickle.load(open('tmp_corpus.pkl', 'rb'))
+        else:
+            file_paths = glob.glob('../../tagi/data/corpus/wiki_zh/*/*')
+
+            processes_num = 16
+            pool = multiprocessing.Pool(processes=processes_num)
+
+            file_corpus = pool.map(Preprocessor.read_corpus, file_paths)
+            corpus = []
+            for c in file_corpus:
+                corpus.extend(c)
+            file_corpus = pool.map(Preprocessor.sentence_split, corpus)
+
+            corpus = []
+            for c in file_corpus:
+                corpus.extend(c)
+            pickle.dump(corpus, open('tmp_corpus.pkl', 'wb'))
+
+        dict_building.build_ngrams(corpus, chunk_size=100000, workers=16)
+        pickle.dump(dict_building.ngrams_freq, open('tmp_freq.pkl', 'wb'))
+        pickle.dump(dict_building.ngrams_words, open('tmp_words.pkl', 'wb'))
     else:
-        file_paths = glob.glob('../../tagi/data/corpus/wiki_zh/*/*')
+        dict_building.ngrams_freq = pickle.load(open('tmp_freq.pkl', 'rb'))
+        dict_building.ngrams_words = pickle.load(open('tmp_words.pkl', 'rb'))
 
-        processes_num = 16
-        pool = multiprocessing.Pool(processes=processes_num)
-
-        file_corpus = pool.map(Preprocessor.read_corpus, file_paths)
-        corpus = []
-        for c in file_corpus:
-            corpus.extend(c)
-        file_corpus = pool.map(Preprocessor.sentence_split, corpus)
-
-        corpus = []
-        for c in file_corpus:
-            corpus.extend(c)
-        pickle.dump(corpus, open('tmp_corpus.pkl', 'wb'))
-
-    dict_building.build(corpus)
+    # dict_building.build()
